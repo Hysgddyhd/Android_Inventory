@@ -16,6 +16,7 @@
 
 package com.example.inventory.ui.item
 
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -42,8 +43,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -52,11 +55,15 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.InventoryTopAppBar
 import com.example.inventory.R
 import com.example.inventory.data.Item
+import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.InventoryTheme
+import kotlinx.coroutines.launch
+import kotlin.math.log
 
 object ItemDetailsDestination : NavigationDestination {
     override val route = "item_details"
@@ -68,10 +75,14 @@ object ItemDetailsDestination : NavigationDestination {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ItemDetailsScreen(
+
     navigateToEditItem: (Int) -> Unit,
     navigateBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: ItemDetailsViewModel= viewModel(factory=AppViewModelProvider.Factory)
 ) {
+    val uiState = viewModel.uiState.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
     Scaffold(
         topBar = {
             InventoryTopAppBar(
@@ -82,7 +93,7 @@ fun ItemDetailsScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navigateToEditItem(0) },
+                onClick = { navigateToEditItem(uiState.value.itemDetails.id) },
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.padding(dimensionResource(id = R.dimen.padding_large))
 
@@ -95,9 +106,17 @@ fun ItemDetailsScreen(
         }, modifier = modifier
     ) { innerPadding ->
         ItemDetailsBody(
-            itemDetailsUiState = ItemDetailsUiState(),
-            onSellItem = { },
-            onDelete = { },
+            itemDetailsUiState = uiState.value,
+            onSellItem = {
+                viewModel.reduceItemQuantityByOne()
+            },
+            onDelete = {
+                coroutineScope.launch {
+                    viewModel.deleteItem()
+                    navigateBack()
+                }
+            },
+            isItemSellable = !uiState.value.outOfStock,
             modifier = Modifier
                 .padding(
                     start = innerPadding.calculateStartPadding(LocalLayoutDirection.current),
@@ -111,6 +130,7 @@ fun ItemDetailsScreen(
 
 @Composable
 private fun ItemDetailsBody(
+    isItemSellable:Boolean,
     itemDetailsUiState: ItemDetailsUiState,
     onSellItem: () -> Unit,
     onDelete: () -> Unit,
@@ -130,7 +150,7 @@ private fun ItemDetailsBody(
             onClick = onSellItem,
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.small,
-            enabled = true
+            enabled = isItemSellable
         ) {
             Text(stringResource(R.string.sell))
         }
@@ -147,6 +167,7 @@ private fun ItemDetailsBody(
                     deleteConfirmationRequired = false
                     onDelete()
                 },
+
                 onDeleteCancel = { deleteConfirmationRequired = false },
                 modifier = Modifier.padding(dimensionResource(id = R.dimen.padding_medium))
             )
@@ -241,12 +262,14 @@ private fun DeleteConfirmationDialog(
 fun ItemDetailsScreenPreview() {
     InventoryTheme {
         ItemDetailsBody(
+            isItemSellable = true,
             ItemDetailsUiState(
                 outOfStock = true,
                 itemDetails = ItemDetails(1, "Pen", "$100", "10")
             ),
             onSellItem = {},
-            onDelete = {}
+            onDelete = {},
+
         )
     }
 }

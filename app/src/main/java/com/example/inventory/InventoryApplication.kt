@@ -17,6 +17,7 @@
 package com.example.inventory
 
 import android.app.Application
+import android.util.Log
 import com.example.inventory.data.AppContainer
 import com.example.inventory.data.AppDataContainer
 
